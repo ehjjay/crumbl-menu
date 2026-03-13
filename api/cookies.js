@@ -1,5 +1,6 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 's-maxage=3600');
 
   try {
     const response = await fetch('https://crumblcookies.com/', {
@@ -9,22 +10,53 @@ export default async function handler(req, res) {
       }
     });
 
+    if (!response.ok) return res.status(502).json({ error: `Fetch failed: ${response.status}` });
+
     const html = await response.text();
     const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-    const nextData = JSON.parse(nextDataMatch[1]);
-    const products = nextData?.props?.pageProps?.products || {};
+    if (!nextDataMatch) return res.status(500).json({ error: 'No __NEXT_DATA__ found' });
 
-    const firstRotating = products.rotatingMenu?.items?.[0] || {};
-    const firstClassic = products.classicMenu?.items?.[0] || {};
+    const pageProps = JSON.parse(nextDataMatch[1])?.props?.pageProps || {};
+    const products = pageProps.products || {};
 
-    return res.status(200).json({
-      firstRotatingKeys: Object.keys(firstRotating),
-      firstRotatingSample: firstRotating,
-      firstClassicKeys: Object.keys(firstClassic),
-      firstClassicSample: firstClassic,
-    });
+    const rotatingItems = products.rotatingMenu?.items || [];
+    const classicItems = products.classicMenu?.items || [];
+
+    const cookies = [
+      ...rotatingItems.map(item => normalizeCookie(item, 'weekly')),
+      ...classicItems.map(item => normalizeCookie(item, 'classic')),
+    ];
+
+    const { startDate, endDate } = pageProps.currentCookieWeek || {};
+    const fmt = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const weekRange = (startDate && endDate)
+      ? `${fmt(startDate)} – ${fmt(endDate)}`
+      : '';
+
+    return res.status(200).json({ weekRange, fetchedAt: new Date().toISOString(), cookies });
 
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
+}
+
+function normalizeCookie(item, availability) {
+  const d = item.dessert || {};
+  const highlightTag = item.highlightTag || '';
+
+  if (highlightTag === 'Today Only') availability = 'today';
+
+  return {
+    name: d.name || d.nameWithoutPartner || '',
+    description: d.description || '',
+    image: d.newAerialImage || d.aerialImage || d.contextImage || '',
+    profileUrl: d.slug ? `https://crumblcookies.com/profiles/${d.slug}` : '',
+    slug: d.slug || '',
+    availability,
+    highlightTag,
+    calories: d.calorieInformation?.total || '',
+    rating: d.stats?.averageRating || null,
+    reviews: d.stats?.totalReviews || null,
+    backgroundColor: d.backgroundColor || '',
+  };
 }

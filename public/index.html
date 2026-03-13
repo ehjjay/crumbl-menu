@@ -242,6 +242,17 @@
 
     .card-link:hover { text-decoration: underline; }
 
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin-top: 0.6rem;
+      font-size: 0.75rem;
+    }
+    .rating { color: #c8860a; font-weight: 500; }
+    .reviews { color: var(--warm-gray); font-weight: 400; }
+    .calories { color: var(--warm-gray); }
+
     /* LOADING / ERROR */
     .state-msg {
       text-align: center;
@@ -376,13 +387,15 @@
   }
 
   function renderCard(cookie) {
-    const badgeLabel = cookie.availability === 'weekly' ? 'This Week' :
-                       cookie.availability === 'today'  ? 'Today Only' : 'Always Available';
+    const badgeLabel = cookie.highlightTag || (cookie.availability === 'weekly' ? 'This Week' :
+                       cookie.availability === 'today' ? 'Today Only' : 'Always Available');
     const imgSrc = cookie.image || '';
     const desc   = cookie.description || '';
     const link   = cookie.profileUrl
       ? `<a class="card-link" href="${cookie.profileUrl}" target="_blank">View Details →</a>`
       : '';
+    const stars  = cookie.rating ? `<span class="rating">★ ${cookie.rating.toFixed(1)} <span class="reviews">(${(cookie.reviews||0).toLocaleString()})</span></span>` : '';
+    const cals   = cookie.calories ? `<span class="calories">${cookie.calories} cal</span>` : '';
 
     return `
       <div class="cookie-card">
@@ -393,6 +406,7 @@
         <div class="card-body">
           <h3>${cookie.name}</h3>
           ${desc ? `<p>${desc}</p>` : ''}
+          <div class="card-meta">${stars}${cals}</div>
           ${link}
         </div>
       </div>`;
