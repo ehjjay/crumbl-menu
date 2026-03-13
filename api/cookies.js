@@ -24,22 +24,52 @@ export default async function handler(req, res) {
     const pageProps = nextData?.props?.pageProps || {};
     const products = pageProps.products || {};
 
-    // Return raw products so we can see exact structure
-    return res.status(200).json({
-      productsKeys: Object.keys(products),
-      classicMenuType: typeof products.classicMenu,
-      classicMenuIsArray: Array.isArray(products.classicMenu),
-      classicMenuSample: Array.isArray(products.classicMenu)
-        ? { length: products.classicMenu.length, firstItemKeys: products.classicMenu[0] ? Object.keys(products.classicMenu[0]) : [] }
-        : (products.classicMenu ? { keys: Object.keys(products.classicMenu).slice(0, 5) } : null),
-      rotatingMenuType: typeof products.rotatingMenu,
-      rotatingMenuIsArray: Array.isArray(products.rotatingMenu),
-      rotatingMenuSample: Array.isArray(products.rotatingMenu)
-        ? { length: products.rotatingMenu.length, firstItemKeys: products.rotatingMenu[0] ? Object.keys(products.rotatingMenu[0]) : [] }
-        : (products.rotatingMenu ? { keys: Object.keys(products.rotatingMenu).slice(0, 5) } : null),
-    });
+    const classicItems = products.classicMenu?.items || [];
+    const rotatingItems = products.rotatingMenu?.items || [];
+
+    const cookies = [
+      ...rotatingItems.map(item => normalizeCookie(item, 'weekly')),
+      ...classicItems.map(item => normalizeCookie(item, 'classic')),
+    ];
+
+    const { startDate, endDate } = pageProps.currentCookieWeek || {};
+    let weekRange = '';
+    if (startDate && endDate) {
+      const fmt = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      weekRange = `${fmt(startDate)} – ${fmt(endDate)}`;
+    } else {
+      const now = new Date();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      weekRange = `${fmt(monday)} – ${fmt(sunday)}`;
+    }
+
+    return res.status(200).json({ weekRange, fetchedAt: new Date().toISOString(), cookies });
 
   } catch (err) {
-    return res.status(500).json({ error: err.message, stack: err.stack?.slice(0, 300) });
+    return res.status(500).json({ error: err.message });
   }
+}
+
+function normalizeCookie(item, availability) {
+  let image = '';
+  if (Array.isArray(item.assets) && item.assets.length > 0) {
+    const aerial = item.assets.find(a => a?.url && (a.url.includes('1080') || a.url.includes('Aerial')));
+    const any = item.assets.find(a => a?.url);
+    image = (aerial || any)?.url || '';
+  }
+  if (!image) image = item.imageUrl || item.image || item.assetUrl || '';
+
+  const slug = item.slug || item.urlSlug || '';
+  return {
+    name: item.name || item.title || '',
+    description: item.description || item.subtitle || '',
+    image,
+    profileUrl: slug ? `https://crumblcookies.com/profiles/${slug}` : '',
+    slug,
+    availability
+  };
 }
