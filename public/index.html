@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Crumbl Weekly Menu</title>
+  <meta name="robots" content="noindex, nofollow" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
   <style>
@@ -305,13 +306,14 @@
 
 <div class="refresh-bar">
   <button class="refresh-btn" id="refreshBtn" onclick="loadCookies()">↻ Refresh Menu</button>
+  <button class="refresh-btn download-btn" id="downloadBtn" onclick="downloadAllImages()" style="display:none">⬇ Download All Images</button>
   <span class="fetch-time" id="fetchTime"></span>
 </div>
 
 <div id="app"></div>
 
 <footer>
-  Data sourced from <a href="https://crumblcookies.com" target="_blank">crumblcookies.com</a> · Not affiliated with Crumbl Cookies
+  
 </footer>
 
 <script>
@@ -376,6 +378,7 @@
       }
 
       app.innerHTML = html;
+      showDownloadBtn();
 
     } catch (err) {
       app.innerHTML = `<div class="error-msg">⚠️ ${err.message}<br><br>Try refreshing or check back later.</div>`;
@@ -410,6 +413,47 @@
           ${link}
         </div>
       </div>`;
+  }
+
+  // Show download button once cookies are loaded
+  function showDownloadBtn() {
+    document.getElementById('downloadBtn').style.display = 'inline-block';
+  }
+
+  async function downloadAllImages() {
+    const btn = document.getElementById('downloadBtn');
+    const imgs = [...document.querySelectorAll('.card-image-wrap img')];
+    if (!imgs.length) return;
+
+    btn.textContent = '⏳ Downloading...';
+    btn.classList.add('loading');
+
+    let count = 0;
+    for (const img of imgs) {
+      const url = img.src;
+      const name = img.alt || 'cookie';
+      const filename = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.png';
+
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        count++;
+        btn.textContent = `⏳ ${count}/${imgs.length}...`;
+        // Small delay to avoid browser blocking multiple downloads
+        await new Promise(r => setTimeout(r, 600));
+      } catch (e) {
+        console.error('Failed to download', filename, e);
+      }
+    }
+
+    btn.textContent = `✓ Downloaded ${count} images`;
+    btn.classList.remove('loading');
+    setTimeout(() => { btn.textContent = '⬇ Download All Images'; }, 3000);
   }
 
   // Load on page open
